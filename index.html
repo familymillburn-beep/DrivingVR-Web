@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driving VR</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: black;
+    }
+    #video {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1); /* mirror for VR */
+    }
+    #vr {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="vr"></canvas>
+
+<script>
+// CAMERA FEED
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+.then(stream => {
+    document.getElementById("video").srcObject = stream;
+});
+
+// VR CANVAS
+const canvas = document.getElementById("vr");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.onresize = resize;
+
+// HEAD TRACKING
+let yaw = 0, pitch = 0;
+
+window.addEventListener("deviceorientation", e => {
+    yaw = e.gamma / 30;
+    pitch = e.beta / 60;
+});
+
+// DRAW LOOP
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const half = w / 2;
+
+    drawEye(0, half, h, -yaw);
+    drawEye(half, half, h, yaw);
+
+    requestAnimationFrame(draw);
+}
+
+function drawEye(x, w, h, offset) {
+    ctx.save();
+    ctx.translate(x, 0);
+
+    // Cockpit overlay
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, h * 0.7, w, h * 0.3);
+
+    // Steering wheel
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(w/2 + offset*40, h*0.85, 60, 0, Math.PI*2);
+    ctx.stroke();
+
+    // Speed text
+    ctx.fillStyle = "white";
+    ctx.font = "28px sans-serif";
+    ctx.fillText("SPEED: 45", w/2 - 70, 40);
+
+    ctx.restore();
+}
+
+draw();
+</script>
+
+</body>
+</html>
