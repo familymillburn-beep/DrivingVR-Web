@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Driving VR</title>
+<title>Driving VR – City Filter</title>
 <style>
     body, html {
         margin: 0;
@@ -73,18 +73,45 @@ function drawEye(x, w, h, offset) {
     ctx.save();
     ctx.translate(x, 0);
 
-    // Cockpit overlay
+    // CITY COLOR FILTER
+    ctx.fillStyle = "rgba(20, 40, 80, 0.35)";
+    ctx.fillRect(0, 0, w, h);
+
+    // BUILDING OUTLINES
+    for (let i = 0; i < 8; i++) {
+        let bx = (i / 8) * w + offset * 20;
+        let bw = w / 10;
+        let bh = h * (0.3 + Math.random() * 0.4);
+
+        ctx.strokeStyle = "rgba(200, 220, 255, 0.4)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, h - bh, bw, bh);
+
+        // WINDOWS
+        ctx.fillStyle = "rgba(255,255,200,0.2)";
+        for (let wy = h - bh + 10; wy < h - 10; wy += 20) {
+            for (let wx = bx + 5; wx < bx + bw - 5; wx += 15) {
+                ctx.fillRect(wx, wy, 8, 8);
+            }
+        }
+    }
+
+    // SKYLINE SILHOUETTE
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(0, h * 0.75, w, h * 0.25);
+
+    // COCKPIT OVERLAY
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0, h * 0.7, w, h * 0.3);
 
-    // Steering wheel
+    // STEERING WHEEL
     ctx.strokeStyle = "white";
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(w/2 + offset*40, h*0.85, 60, 0, Math.PI*2);
     ctx.stroke();
 
-    // Speed text
+    // SPEED TEXT
     ctx.fillStyle = "white";
     ctx.font = "28px sans-serif";
     ctx.fillText("SPEED: 45", w/2 - 70, 40);
