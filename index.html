@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Driving VR – City Filter</title>
+<title>Driving VR – AR City</title>
 <style>
     body, html {
         margin: 0;
@@ -34,6 +34,9 @@
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
 .then(stream => {
     document.getElementById("video").srcObject = stream;
+})
+.catch(err => {
+    console.log("Camera error:", err);
 });
 
 // VR CANVAS
@@ -51,9 +54,39 @@ window.onresize = resize;
 let yaw = 0, pitch = 0;
 
 window.addEventListener("deviceorientation", e => {
-    yaw = e.gamma / 30;
-    pitch = e.beta / 60;
+    if (e.gamma != null && e.beta != null) {
+        yaw = e.gamma / 40;   // left/right tilt
+        pitch = e.beta / 60;  // forward/back tilt
+    }
 });
+
+// Simple "3D" building data
+const buildings = [];
+function initBuildings() {
+    buildings.length = 0;
+    for (let i = 0; i < 12; i++) {
+        buildings.push({
+            x: (i - 6) * 2,              // world X
+            z: 5 + Math.random() * 15,   // depth
+            h: 2 + Math.random() * 4     // height
+        });
+    }
+}
+initBuildings();
+
+// Project world coords to screen (fake perspective)
+function project(x, y, z, eyeOffset, w, h) {
+    const fov = 1.2;
+    const ex = eyeOffset; // eye offset in world space
+    const zx = x - ex - yaw * 4; // parallax with yaw
+    const zy = z + 1;
+
+    const scale = fov / zy;
+    const sx = w / 2 + zx * scale * w * 0.12;
+    const sy = h * 0.8 - y * scale * h * 0.25 - pitch * 40;
+
+    return { x: sx, y: sy };
+}
 
 // DRAW LOOP
 function draw() {
@@ -63,58 +96,103 @@ function draw() {
     const h = canvas.height;
     const half = w / 2;
 
-    drawEye(0, half, h, -yaw);
-    drawEye(half, half, h, yaw);
+    drawEye(0, half, h, -0.5);
+    drawEye(half, half, h, 0.5);
 
     requestAnimationFrame(draw);
 }
 
-function drawEye(x, w, h, offset) {
+function drawEye(xOffset, w, h, eyeOffset) {
     ctx.save();
-    ctx.translate(x, 0);
+    ctx.translate(xOffset, 0);
 
-    // CITY COLOR FILTER
-    ctx.fillStyle = "rgba(20, 40, 80, 0.35)";
+    // Slight dark overlay to separate from camera
+    ctx.fillStyle = "rgba(0,0,20,0.25)";
     ctx.fillRect(0, 0, w, h);
 
-    // BUILDING OUTLINES
-    for (let i = 0; i < 8; i++) {
-        let bx = (i / 8) * w + offset * 20;
-        let bw = w / 10;
-        let bh = h * (0.3 + Math.random() * 0.4);
+    // Draw ground plane
+    ctx.fillStyle = "rgba(10, 10, 30, 0.8)";
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.8);
+    ctx.lineTo(w, h * 0.8);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
 
-        ctx.strokeStyle = "rgba(200, 220, 255, 0.4)";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(bx, h - bh, bw, bh);
-
-        // WINDOWS
-        ctx.fillStyle = "rgba(255,255,200,0.2)";
-        for (let wy = h - bh + 10; wy < h - 10; wy += 20) {
-            for (let wx = bx + 5; wx < bx + bw - 5; wx += 15) {
-                ctx.fillRect(wx, wy, 8, 8);
-            }
-        }
+    // Draw roads (perspective lines)
+    ctx.strokeStyle = "rgba(80,80,120,0.8)";
+    ctx.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        const sx = (w / 2) + i * 40;
+        ctx.moveTo(sx, h * 0.8);
+        ctx.lineTo(w / 2 + i * 10, h * 0.4);
+        ctx.stroke();
     }
 
-    // SKYLINE SILHOUETTE
-    ctx.fillStyle = "rgba(0,0,0,0.4)";
-    ctx.fillRect(0, h * 0.75, w, h * 0.25);
+    // Draw buildings (simple extruded rectangles)
+    buildings.forEach(b => {
+        const base = project(b.x, 0, b.z, eyeOffset, w, h);
+        const top = project(b.x, b.h, b.z, eyeOffset, w, h);
 
-    // COCKPIT OVERLAY
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
+        const widthWorld = 1.2;
+        const left = project(b.x - widthWorld/2, 0, b.z, eyeOffset, w, h);
+        const right = project(b.x + widthWorld/2, 0, b.z, eyeOffset, w, h);
+        const leftTop = project(b.x - widthWorld/2, b.h, b.z, eyeOffset, w, h);
+        const rightTop = project(b.x + widthWorld/2, b.h, b.z, eyeOffset, w, h);
+
+        // Front face
+        ctx.fillStyle = "rgba(40, 80, 140, 0.9)";
+        ctx.beginPath();
+        ctx.moveTo(left.x, left.y);
+        ctx.lineTo(right.x, right.y);
+        ctx.lineTo(rightTop.x, rightTop.y);
+        ctx.lineTo(leftTop.x, leftTop.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Side face
+        ctx.fillStyle = "rgba(20, 50, 110, 0.9)";
+        ctx.beginPath();
+        ctx.moveTo(right.x, right.y);
+        ctx.lineTo(right.x + 20, right.y - 10);
+        ctx.lineTo(rightTop.x + 20, rightTop.y - 10);
+        ctx.lineTo(rightTop.x, rightTop.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Windows
+        ctx.fillStyle = "rgba(255, 255, 200, 0.6)";
+        const rows = 5;
+        const cols = 3;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const t = r / (rows + 1);
+                const s = (c + 1) / (cols + 1);
+                const wx = left.x + (right.x - left.x) * s;
+                const wy = left.y + (leftTop.y - left.y) * t;
+                ctx.fillRect(wx - 3, wy - 3, 6, 6);
+            }
+        }
+    });
+
+    // Cockpit overlay
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, h * 0.7, w, h * 0.3);
 
-    // STEERING WHEEL
+    // Steering wheel
     ctx.strokeStyle = "white";
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.arc(w/2 + offset*40, h*0.85, 60, 0, Math.PI*2);
+    ctx.arc(w/2 + yaw*40, h*0.87, 60, 0, Math.PI*2);
     ctx.stroke();
 
-    // SPEED TEXT
+    // Speed text
     ctx.fillStyle = "white";
-    ctx.font = "28px sans-serif";
-    ctx.fillText("SPEED: 45", w/2 - 70, 40);
+    ctx.font = "24px sans-serif";
+    ctx.fillText("CITY DRIVE", w/2 - 60, h * 0.72);
+    ctx.fillText("SPEED: 45", w/2 - 55, h * 0.72 + 28);
 
     ctx.restore();
 }
